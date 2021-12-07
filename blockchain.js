@@ -108,6 +108,7 @@ class Blockchain {
         this.difficulty = 2
         this.pendingTransaction = []
         this.miningReward = 100
+        this.mineCount = 0
     }
 
     createGenesisBlock() {
@@ -140,6 +141,7 @@ class Blockchain {
         let block = new Block(Date.now(), this.pendingTransaction, this.getLatestBlock().hash)
         block.mineBlock(this.difficulty)
         console.log('Block successfully mined')
+        this.mineCount += 1;
 
         this.chain.push(block)
         this.pendingTransaction = []
@@ -213,6 +215,10 @@ class Blockchain {
             for(let tx of block.transactions)
             console.log("   transaction: " + tx.signature)
         }
+    }
+    
+    printMinedCoins(){
+        console.log("The Amount Of Coins Mined in the BlockChain is: " + this.mineCount*this.miningReward)
     }
 }
 
