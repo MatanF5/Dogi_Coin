@@ -6,21 +6,12 @@ const {
     PartitionedBloomFilter
 } = require('bloom-filters')
 
-const pendingTransactionToExport = []
-const myKey1 = ec.keyFromPrivate('04411cc35f4d3040cc864778dbafea18cfb7edee03d2eef2f4c0029e7d18df5798f7d0c0313fb8758a7a2950a2c2784c4e32e378dc3e0a164d7fde0e564e0537ad')
-const myKey2 = ec.keyFromPrivate('04a60ef1727cb3d41402b8e7d7b5577144dbe0b989dea7abc148255ee370f34dc2c4bcecc38bed7b9d8eed3aa070caa5d7f3961c6b3bbafbf2f4b54ca4e95f6438')
-const myWalletAddress1 = myKey1.getPublic('hex')
-const myWalletAddress2 = myKey2.getPublic('hex')
-const miningRewardAddress = myWalletAddress2
-
-const wallets = [{}, { private: myKey1, public: myWalletAddress1 }, { private: myKey2, public: myWalletAddress2 }]
-
 class Transaction {
     constructor(fromAddress, toAddress, amount) {
-        this.fromAddress = fromAddress
-        this.toAddress = toAddress
-        this.amount = amount
-        this.timestamp = Date.now()
+        this.fromAddress = fromAddress;
+        this.toAddress = toAddress;
+        this.amount = amount;
+        this.timestamp = Date.now();
     }
 
     calculateHash() {
@@ -44,12 +35,7 @@ class Transaction {
         return publicKey.verify(this.calculateHash(), this.signature)
     }
 
-    toString() {
-        return SHA256(this.fromAddress + this.toAddress + this.amount + this.timestamp + this.signature).toString()
-    }
 }
-
-
 
 
 
@@ -65,14 +51,16 @@ class Block {
         const leaves = transactions.map(x => SHA256(x))
         this.tree = new MerkleTree(leaves, SHA256)
 
-        //Create a PartitionedBloomFilter optimal for a collections of items and a desired error rate
         this.filter = new PartitionedBloomFilter(120, 5, 0.5)
 
         for (let trx of this.transactions) {
-            this.filter.add(trx.toString())
+            this.filter.add(trx.calculateHash())
         }
     }
 
+    ifTransactionExists(transaction) {
+        return this.filter.has(transaction.calculateHash());
+      }
     calculateHash() {
         return SHA256(this.timestamp + this.previousHash + JSON.stringify(this.transactions) + this.nonce).toString()
     }
@@ -107,8 +95,9 @@ class Blockchain {
         this.chain = [this.createGenesisBlock()]
         this.difficulty = 2
         this.pendingTransaction = []
-        this.miningReward = 100
-        this.mineCount = 0
+        this.miningReward = 10
+        this.mineCoins = 0
+        this.burnedCoins = 0
     }
 
     createGenesisBlock() {
@@ -119,29 +108,19 @@ class Blockchain {
         return this.chain[this.chain.length - 1]
     }
 
-    loadTransactionsIntoBlocks(transactionPool) {
-        let counter = 0;
-        for (const element of transactionPool) {
-            let newTransaction = new Transaction(wallets[element.fromAddress].public, wallets[element.toAddress].public, element.amount)
-            newTransaction.signTransaction(wallets[element.fromAddress].private)
-            pendingTransactionToExport.push(newTransaction)
-            this.addTransaction(newTransaction)
-            counter += 1;
-
-            if (counter % 4 === 0) {
-                this.miningPendingTransaction(miningRewardAddress)
-            }
-        }
-    }
-
     miningPendingTransaction(miningRewardAddress) {
-        const rewardTx = new Transaction(null, miningRewardAddress, this.miningReward)
+        let mineReward = this.miningReward;
+        for (let i = 0; i < this.pendingTransaction.length; i++) {
+            mineReward += this.chain.length + 1;
+            this.burnedCoins += this.chain.length;
+            this.mineCoins += this.pendingTransaction[i].amount;
+          }
+        const rewardTx = new Transaction(null, miningRewardAddress, mineReward)
         this.pendingTransaction.push(rewardTx)
 
         let block = new Block(Date.now(), this.pendingTransaction, this.getLatestBlock().hash)
         block.mineBlock(this.difficulty)
         console.log('Block successfully mined')
-        this.mineCount += 1;
 
         this.chain.push(block)
         this.pendingTransaction = []
@@ -154,17 +133,15 @@ class Blockchain {
         if (!transaction.isValid()) {
             throw new Error('Cannot add invalid transaction')
         }
-        this.pendingTransaction.push(transaction)
+        if (this.getBalanceOfAddress(transaction.fromAddress) - transaction.amount - 1 - this.chain.length < 0){
+            throw new Error('Not enough money in the wallet');
+        }
+        this.pendingTransaction.push(transaction);
     }
 
-    getTotalBalanceOBlockChain() {
-        let totalSum = 0
-        totalSum += this.getBalanceOfAddress(wallets[1].public)
-        totalSum += this.getBalanceOfAddress(wallets[2].public)
-        return totalSum + 3000 // 3000 is the amount of the initial wallets value
-    }
+
     getBalanceOfAddress(address) {
-        let balance = 0
+        let balance = 100
         for (const block of this.chain) {
             for (const trans of block.transactions) {
 
@@ -226,4 +203,3 @@ class Blockchain {
 module.exports.Blockchain = Blockchain
 module.exports.Block = Block
 module.exports.Transaction = Transaction
-module.exports.PendingTransaction = pendingTransactionToExport
