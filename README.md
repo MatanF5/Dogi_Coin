@@ -2,6 +2,8 @@
 
 A Blockchain project including P2P, BloomFilter and MerkleTree implementation
 
+NPM install before running
+
 How to run:
 1) open 3 terminals
 2) type each command in different terminal:
